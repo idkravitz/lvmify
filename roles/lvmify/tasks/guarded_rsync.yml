@@ -1,0 +1,8 @@
+- name: Check if copy is already done
+  ansible.builtin.stat:
+    path: "{{rsync_dst}}{{guard_file}}"
+  register: guard_file
+
+- name: "Rsync {{rsync_src}} -> {{rsync_dst}}"
+  command: "rsync -raxq {{rsync_src}}./ {{rsync_dst}}"
+  when: not guard_file.stat.exists

@@ -1,0 +1,60 @@
+# Vars: chroot_dir, root_drive, test_device (optional)
+- name: "Check if chroot env already exists in {{ chroot_dir }}"
+  stat:
+    path: "{{chroot_dir}}{{ test_device | default(root_drive) }}"
+  register: chroot_env
+- name: Prepare chroot environment
+  when: not chroot_env.stat.exists
+  block:
+    - name: Mount proc
+      ansible.posix.mount:
+        src: /proc
+        path: "{{chroot_dir}}/proc"
+        fstype: proc
+        state: ephemeral
+    - name: Mount sys
+      ansible.posix.mount:
+        src: /sys
+        path: "{{chroot_dir}}/sys"
+        fstype: sysfs
+        state: ephemeral
+    - name: Mount dev
+      ansible.posix.mount:
+        src: /dev
+        path: "{{chroot_dir}}/dev"
+        fstype: none
+        opts: bind
+        state: ephemeral
+- name: Configure new fstab
+  block:
+    - name: Wipe fstab
+      ansible.builtin.file:
+        path: "{{chroot_dir}}/etc/fstab"
+        state: absent
+    - name: Add root entry
+      ansible.posix.mount:
+        fstab: "{{chroot_dir}}/etc/fstab"
+        src: /dev/main/tmproot
+        path: /
+        fstype: ext4
+        state: present
+- name: Grub
+  block:
+    - name: Update grub in chroot
+      command: "chroot {{chroot_dir}} update-grub"
+    - name: Reinstall grub on main root_drive
+      command: "chroot {{chroot_dir}} grub-install {{ root_drive }}"
+- name: Cleanup chroot mounts
+  block:
+    - name: Umount proc
+      ansible.posix.mount:
+        path: "{{chroot_dir}}/proc"
+        state: unmounted
+    - name: Umount sys
+      ansible.posix.mount:
+        path: "{{chroot_dir}}/sys"
+        state: unmounted
+    - name: Umount dev
+      ansible.posix.mount:
+        path: "{{chroot_dir}}/dev"
+        state: unmounted

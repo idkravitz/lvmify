@@ -1,0 +1,12 @@
+- name: "Show us some stuff"
+  debug:
+    var: is_lvmified
+- name: "LVMify!"
+  block:
+    - name: "Prepare temp root"
+      ansible.builtin.import_tasks:
+        file: prepare_temp_root.yml
+    - name: "Move actual root to LVM"
+      ansible.builtin.import_tasks:
+        file: move_root.yml
+  when: not is_lvmified

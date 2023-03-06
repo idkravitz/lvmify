@@ -1,0 +1,10 @@
+---
+all_devices: "{{ ansible_facts | idkravitz.lvmify.all_sizable_devices }}"
+root_partition_basename: "{{ root_partition.device | basename }}"
+root_partition_fullname: "{{ root_partition.device }}"
+root_drive: "{{ (all_devices | selectattr('partitions', 'issuperset', [root_partition_basename]))[0] }}"
+volume_drive_info: "{{ (all_devices | selectattr('name', 'eq', volume_drive))[0] }}"
+root_size: "{{ (root_partition.size_total - root_partition.size_available) | int }}"
+volume_drive_fullname: "/dev/{{ volume_drive }}"
+volume_minimal_size: "{{ (root_size | int) * 2 + 500 * 1024 * 1024 }}"
+is_lvmified: "{{ 'mapper' in root_partition.device }}"

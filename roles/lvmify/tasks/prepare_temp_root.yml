@@ -1,0 +1,65 @@
+# - name: Transfer system to an lvm
+
+# - ansible.builtin.debug: var=root_drive
+# - ansible.builtin.debug: var=root_partition
+# - ansible.builtin.debug: var=root_partition_basename
+# - ansible.builtin.debug: var="root_size | int | human_readable"
+# - ansible.builtin.debug: var=all_devices
+# - ansible.builtin.debug: var=volume_mounts
+# - ansible.builtin.debug: var=volume_drive
+
+- name: "Assign vars that cause recursion otherwise"
+  ansible.builtin.set_fact:
+    root_drive_fullname: "/dev/{{ root_drive.name }}"
+
+- name: "Check if volume {{ volume_drive_fullname }} has enough disk space"
+  ansible.builtin.fail:
+    msg: "Volume {{volume_drive_fullname}} isn't large enough to perform the trick, please buy at least {{ volume_minimal_size | int | human_readable }} (currently its {{volume_drive_info.size | int | human_readable}})"
+  when: (volume_drive_info.size | int) < (volume_minimal_size | int)
+
+- name: "Unmount automatic volume mounts"
+  ansible.posix.mount:
+    path: "{{ item.mount }}"
+    state: absent
+  loop: "{{ volume_mounts }}"
+
+- name: "Reformat volume just-in-case"
+  block:
+    - name: "Wipe partitions on volume {{ volume_drive_fullname }}"
+      command: "wipefs --all {{ volume_drive_fullname }}"
+
+    - name: "Format {{ volume_drive_fullname }} in ext4"
+      community.general.filesystem:
+        fstype: ext4
+        dev: "{{ volume_drive_fullname }}"
+
+- name: "Mount volume in predictable location (/mnt/root)"
+  ansible.posix.mount:
+    src: "{{ volume_drive_fullname }}"
+    path: /mnt/root
+    fstype: ext4
+    state: ephemeral
+
+- name: Copy root to the volume
+  ansible.builtin.import_tasks:
+    file: guarded_rsync.yml
+  vars:
+    rsync_src: "/"
+    rsync_dst: "/mnt/root"
+    guard_file: "/bin/bash"
+
+- name: Configure grub in chroot
+  import_tasks:
+    file: chroot_conf_grub.yml
+  vars:
+    chroot_dir: "/mnt/root"
+    root_drive: "{{ root_drive_fullname }}"
+
+- name: Unmount new root partition
+  ansible.posix.mount:
+    path: /mnt/root
+    state: unmounted
+
+- name: Reboot to the temporary root
+  ansible.builtin.import_tasks:
+    file: reboot.yml

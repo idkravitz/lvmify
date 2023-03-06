@@ -1,0 +1,7 @@
+---
+# defaults file for lvmify
+root_partition: "{{ (ansible_facts.mounts | selectattr('mount', 'in', '/') | list)[-1] }}"
+volume_drive: "{{ (ansible_facts | idkravitz.lvmify.discover_volumes(root_size, root_drive.name))[0].name}}"
+volume_mounts: "{{ ansible_facts | idkravitz.lvmify.discover_mounts(volume_drive) }}"
+volume_group: main
+logical_volume: root
